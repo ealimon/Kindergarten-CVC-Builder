@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kindergarten CVC Builder</title>
+    <!-- Load Tone.js for simple sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&display=swap');
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .game-card {
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            padding: 2rem;
+            text-align: center;
+        }
+        .score-display {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #10b981; /* Green color for score */
+            margin-bottom: 1rem;
+        }
+        .word-display {
+            min-height: 80px; /* Ensure height is maintained */
+        }
+        .letter-slot {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            width: 70px;
+            height: 70px;
+            border: 3px dashed #cbd5e1; /* Dash border for empty state */
+            border-radius: 10px;
+            margin: 0 5px;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #334155;
+            transition: all 0.2s ease;
+        }
+        .image-box {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 150px;
+            font-size: 8rem;
+            margin-bottom: 1.5rem;
+            border-radius: 10px;
+            background-color: #e2e8f0;
+        }
+        .letter-button {
+            transition: all 0.1s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        .letter-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(74, 144, 226, 0.3);
+        }
+        .correct-answer {
+            background-color: #4ade80 !important; /* Green */
+            border-color: #16a34a !important;
+            color: white !important;
+        }
+        .incorrect-answer {
+            background-color: #f87171 !important; /* Red */
+            border-color: #dc2626 !important;
+            color: white !important;
+        }
+        .difficulty-indicator {
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 700;
+            margin-top: -1rem;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-card">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">Build the Word!</h1>
+        
+        <!-- Difficulty Indicator -->
+        <span id="difficultyIndicator" class="difficulty-indicator bg-blue-200 text-blue-700">EASY MODE</span>
+        
+        <!-- Score Display -->
+        <div id="scoreDisplay" class="score-display">Correct Streak: 0</div>
+
+
+        <!-- Image Placeholder -->
+        <div id="imageBox" class="image-box text-center">
+            <!-- Emoji image will appear here -->
+        </div>
+
+        <!-- Word Slots -->
+        <div id="wordDisplay" class="word-display flex justify-center mb-8">
+            <div id="slot-0" class="letter-slot"></div>
+            <div id="slot-1" class="letter-slot"></div>
+            <div id="slot-2" class="letter-slot"></div>
+        </div>
+
+        <!-- Letter Selection Buttons -->
+        <div id="mx-auto flex justify-center">
+            <div id="letterButtons" class="flex justify-center gap-4 flex-wrap max-w-lg">
+                <!-- Buttons populated by JavaScript -->
+            </div>
+        </div>
+
+
+        <!-- Feedback Message -->
+        <p id="feedback" class="text-xl h-6 font-semibold mt-6 text-gray-600"></p>
+    </div>
+
+    <script>
+        // --- Game Data: CVC Words and corresponding emojis ---
+        const cvcWords = [
+            // Short A words
+            { word: "CAT", emoji: "🐈" }, { word: "BAG", emoji: "🎒" },
+            { word: "FAN", emoji: "🌬️" }, { word: "VAN", emoji: "🚐" },
+            { word: "MAP", emoji: "🗺️" }, { word: "JAM", emoji: "🍓" }, 
+            
+            // Short E words
+            { word: "BED", emoji: "🛏️" }, { word: "WEB", emoji: "🕸️" },
+            { word: "RED", emoji: "🔴" }, { word: "PEN", emoji: "🖋️" },
+            { word: "TEN", emoji: "🔟" }, { word: "LEG", emoji: "🦵" },
+
+            // Short I words
+            { word: "PIG", emoji: "🐖" }, { word: "FIN", emoji: "🐠" },
+            { word: "LIP", emoji: "👄" }, { word: "SIP", emoji: "🥤" },
+            { word: "BIN", emoji: "🗑️" }, { word: "KID", emoji: "👶" },
+
+            // Short O words
+            { word: "DOG", emoji: "🐕" }, { word: "MOP", emoji: "🧹" },
+            { word: "FOX", emoji: "🦊" }, { word: "BOX", emoji: "📦" },
+            { word: "LOG", emoji: "🪵" }, { word: "TOP", emoji: "⬆️" },
+
+            // Short U words
+            { word: "SUN", emoji: "☀️" }, { word: "RUN", emoji: "🏃" },
+            { word: "CUP", emoji: "☕" }, { word: "JUG", emoji: "🍶" },
+            { word: "BUG", emoji: "🐛" }, { word: "MUD", emoji: "🟫" }
+        ];
+
+        // --- Audio Setup using Tone.js ---
+        const correctSynth = new Tone.Synth({
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0.05, release: 0.1 }
+        }).toDestination();
+        const incorrectSynth = new Tone.Synth({
+            oscillator: { type: "square" },
+            envelope: { attack: 0.01, decay: 0.05, sustain: 0.01, release: 0.1 }
+        }).toDestination();
+
+        // --- Game State Variables ---
+        let currentWord = {};
+        let currentLetterIndex = 0;
+        let correctStreak = 0; // Tracks consecutive correct words for difficulty
+
+        const DIFFICULTY_THRESHOLD = 5; // Switch to Hard Mode after 5 correct words
+
+        const imageBox = document.getElementById('imageBox');
+        const letterButtonsContainer = document.getElementById('letterButtons');
+        const feedbackEl = document.getElementById('feedback');
+        const scoreDisplayEl = document.getElementById('scoreDisplay');
+        const difficultyIndicatorEl = document.getElementById('difficultyIndicator');
+
+        // --- UTILITY FUNCTIONS ---
+        
+        // Fisher-Yates shuffle algorithm for array randomization
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        // Plays a success sound (chime)
+        function playCorrectSound() {
+            const now = Tone.now();
+            correctSynth.triggerAttackRelease("C5", "16n", now);
+            correctSynth.triggerAttackRelease("E5", "16n", now + 0.1); // +0.1 second offset
+            correctSynth.triggerAttackRelease("G5", "8n", now + 0.2); // +0.2 second offset
+        }
+
+        // Plays an error sound (bloop)
+        function playIncorrectSound() {
+            incorrectSynth.triggerAttackRelease("C3", "16n");
+        }
+
+        // Updates the score and difficulty status
+        function updateGameStatus() {
+            scoreDisplayEl.textContent = `Correct Streak: ${correctStreak}`;
+            
+            if (correctStreak >= DIFFICULTY_THRESHOLD) {
+                difficultyIndicatorEl.textContent = "HARD MODE";
+                difficultyIndicatorEl.classList.remove('bg-blue-200', 'text-blue-700');
+                difficultyIndicatorEl.classList.add('bg-red-200', 'text-red-700');
+            } else {
+                difficultyIndicatorEl.textContent = "EASY MODE";
+                difficultyIndicatorEl.classList.add('bg-blue-200', 'text-blue-700');
+                difficultyIndicatorEl.classList.remove('bg-red-200', 'text-red-700');
+            }
+        }
+
+        // Function to select a random word and set up the game
+        function loadNewProblem() {
+            // Reset slots
+            for (let i = 0; i < 3; i++) {
+                const slot = document.getElementById(`slot-${i}`);
+                slot.textContent = '';
+                slot.className = 'letter-slot'; // Reset classes
+            }
+
+            // Select a new random word, avoiding the previous word if possible
+            const availableWords = cvcWords.filter(w => w.word !== currentWord.word);
+            // Use the shuffle utility on the available words to ensure randomness
+            shuffleArray(availableWords); 
+            
+            // Set the new current word (this handles the random image display)
+            currentWord = availableWords[0] || cvcWords[0];
+            
+            currentLetterIndex = 0;
+            feedbackEl.textContent = '';
+            
+            // Update the score/difficulty status
+            updateGameStatus();
+
+            // Update image display
+            imageBox.textContent = currentWord.emoji;
+
+            // Generate button choices (Target letters + distractors)
+            generateLetterButtons(currentWord.word);
+        }
+
+        // Function to create the set of clickable letter buttons
+        function generateLetterButtons(targetWord) {
+            letterButtonsContainer.innerHTML = '';
+            const correctLetters = targetWord.split('');
+
+            // Determine number of total buttons based on difficulty
+            const numDistractors = (correctStreak >= DIFFICULTY_THRESHOLD) ? 5 : 3;
+            const totalButtons = 3 + numDistractors; // 3 correct + 3 or 5 distractors
+
+            // Generate a set of unique letters (correct + distractors)
+            const allLetters = new Set();
+            correctLetters.forEach(letter => allLetters.add(letter));
+
+            // Add distractors (random consonants and vowels)
+            const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            while (allLetters.size < totalButtons) {
+                const randomLetter = alphabet[Math.floor(Math.random() * alphabet.length)];
+                allLetters.add(randomLetter);
+            }
+
+            const buttonLetters = Array.from(allLetters);
+            // Shuffle the buttons
+            shuffleArray(buttonLetters); 
+
+            buttonLetters.forEach(letter => {
+                const button = document.createElement('button');
+                button.textContent = letter;
+                button.classList.add('letter-button', 'w-16', 'h-16', 'bg-blue-400', 'text-white', 'rounded-xl', 'text-3xl', 'font-bold', 'shadow-md');
+                button.addEventListener('click', () => handleLetterClick(letter, button));
+                letterButtonsContainer.appendChild(button);
+            });
+        }
+
+        // --- EVENT HANDLER ---
+
+        function handleLetterClick(clickedLetter, buttonElement) {
+            // Ensure audio starts on first click (required by browsers)
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+            
+            if (currentLetterIndex >= 3) return; // Word is already built
+
+            const targetSlot = document.getElementById(`slot-${currentLetterIndex}`);
+            const correctLetter = currentWord.word[currentLetterIndex];
+
+            // 1. Check if the letter is correct for the current slot
+            if (clickedLetter === correctLetter) {
+                targetSlot.textContent = clickedLetter;
+                targetSlot.classList.add('correct-answer');
+                playCorrectSound();
+                buttonElement.disabled = true; // Disable used button
+                buttonElement.classList.remove('bg-blue-400', 'shadow-md');
+                buttonElement.classList.add('bg-green-500', 'opacity-50');
+
+                currentLetterIndex++;
+
+                // 2. Check for WIN condition
+                if (currentLetterIndex === 3) {
+                    feedbackEl.textContent = "Great Job! You built: " + currentWord.word;
+                    correctStreak++; // Increment streak
+                    // Automatically load the next problem after a short delay
+                    setTimeout(loadNewProblem, 2000);
+                }
+
+            } else {
+                // 3. Handle INCORRECT answer
+                playIncorrectSound();
+                feedbackEl.textContent = "Oops! Try another letter.";
+                buttonElement.classList.add('incorrect-answer');
+                
+                // Reset streak on error
+                correctStreak = 0; 
+                updateGameStatus(); // Update score/difficulty indicator immediately
+                
+                // Flash the incorrect state and then reset the button's appearance
+                setTimeout(() => {
+                    buttonElement.classList.remove('incorrect-answer');
+                    feedbackEl.textContent = '';
+                }, 500);
+            }
+        }
+
+        // --- INITIALIZATION ---
+        window.onload = loadNewProblem;
+
+    </script>
+</body>
+</html>
